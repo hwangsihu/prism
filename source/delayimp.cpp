@@ -22,12 +22,16 @@ using StubEntry = struct {
   FARPROC stub;
 };
 
+#if defined(__x86_64) || defined(__x86_64__) || defined(__amd64__) ||          \
+    defined(__amd64) || defined(_M_X64) || defined(_M_IX86) ||                 \
+    defined(__i386__)
 #if defined(_M_X64) || defined(__x86_64__)
 static constexpr const char *SA_DLL = "SAAPI64.dll";
 static constexpr const char *ZDSR_DLL = "ZDSRAPI_x64.dll";
 #elif defined(_M_IX86) || defined(__i386__)
 static constexpr const char *SA_DLL = "SAAPI32.dll";
 static constexpr const char *ZDSR_DLL = "ZDSRAPI.dll";
+#endif
 #endif
 
 static BOOL __stdcall stub_SA_SayW([[maybe_unused]] const wchar_t *text) {
@@ -58,25 +62,35 @@ static int WINAPI stub_zdsr_GetSpeakState() { return 2; }
 
 static void WINAPI stub_zdsr_StopSpeak() {}
 
-static const auto stubs = std::to_array<StubEntry>(
-    {{.dll = SA_DLL, .func = "SA_SayW", .stub = stub_cast(stub_SA_SayW)},
-     {.dll = SA_DLL,
-      .func = "SA_BrlShowTextW",
-      .stub = stub_cast(stub_SA_BrlShowTextW)},
-     {.dll = SA_DLL,
-      .func = "SA_StopAudio",
-      .stub = stub_cast(stub_SA_StopAudio)},
-     {.dll = SA_DLL,
-      .func = "SA_IsRunning",
-      .stub = stub_cast(stub_SA_IsRunning)},
-     {.dll = ZDSR_DLL, .func = "InitTTS", .stub = stub_cast(stub_zdsr_InitTTS)},
-     {.dll = ZDSR_DLL, .func = "Speak", .stub = stub_cast(stub_zdsr_Speak)},
-     {.dll = ZDSR_DLL,
-      .func = "GetSpeakState",
-      .stub = stub_cast(stub_zdsr_GetSpeakState)},
-     {.dll = ZDSR_DLL,
-      .func = "StopSpeak",
-      .stub = stub_cast(stub_zdsr_StopSpeak)}});
+static const
+#if defined(__x86_64) || defined(__x86_64__) || defined(__amd64__) ||          \
+    defined(__amd64) || defined(_M_X64) || defined(_M_IX86) ||                 \
+    defined(__i386__)
+    auto stubs = std::to_array<StubEntry>(
+        {{.dll = SA_DLL, .func = "SA_SayW", .stub = stub_cast(stub_SA_SayW)},
+         {.dll = SA_DLL,
+          .func = "SA_BrlShowTextW",
+          .stub = stub_cast(stub_SA_BrlShowTextW)},
+         {.dll = SA_DLL,
+          .func = "SA_StopAudio",
+          .stub = stub_cast(stub_SA_StopAudio)},
+         {.dll = SA_DLL,
+          .func = "SA_IsRunning",
+          .stub = stub_cast(stub_SA_IsRunning)},
+         {.dll = ZDSR_DLL,
+          .func = "InitTTS",
+          .stub = stub_cast(stub_zdsr_InitTTS)},
+         {.dll = ZDSR_DLL, .func = "Speak", .stub = stub_cast(stub_zdsr_Speak)},
+         {.dll = ZDSR_DLL,
+          .func = "GetSpeakState",
+          .stub = stub_cast(stub_zdsr_GetSpeakState)},
+         {.dll = ZDSR_DLL,
+          .func = "StopSpeak",
+          .stub = stub_cast(stub_zdsr_StopSpeak)}});
+#else
+    std::array<StubEntry, 0>
+        stubs = {};
+#endif
 
 static int dummy_count = 0;
 
@@ -130,7 +144,7 @@ static FARPROC WINAPI DelayLoadFailureHook(unsigned dliNotify,
           if (!path.empty() && path.back() != _T('\\')) {
             path += _T('\\');
           }
-          path += _T("ZDSRAPI_x64.dll");
+          path += fs::path(ZDSR_DLL).wstring();
           auto *const h = LoadLibrary(path.c_str());
           RegCloseKey(zdsr_key);
           if (h != nullptr) {
