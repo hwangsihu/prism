@@ -155,8 +155,7 @@ public:
       BoyCtrlUninitialize();
       return std::unexpected(BackendError::BackendNotAvailable);
     }
-    if (const auto res = BoyCtrlSetAnyKeyStopSpeaking(false);
-        !res) {
+    if (const auto res = BoyCtrlSetAnyKeyStopSpeaking(false); !res) {
       BoyCtrlUninitialize();
       return std::unexpected(BackendError::BackendNotAvailable);
     }
@@ -170,6 +169,21 @@ public:
     }
     if (!BoyCtrlIsReaderRunning()) {
       return std::unexpected(BackendError::BackendNotAvailable);
+    }
+    // Temporary workaround to ensure interrupt always stops
+    // Todo: remove this when fixed upstream
+    if (interrupt) {
+      if (const auto res = BoyCtrlStopSpeaking(false); res != e_bcerr_success) {
+        switch (res) {
+        case e_bcerr_fail:
+        case e_bcerr_arg:
+          return std::unexpected(BackendError::InternalBackendError);
+        case e_bcerr_unavailable:
+          return std::unexpected(BackendError::BackendNotAvailable);
+        default:
+          return std::unexpected(BackendError::Unknown);
+        }
+      }
     }
     const auto len = simdutf::utf16_length_from_utf8(text.data(), text.size());
     std::wstring wstr;
