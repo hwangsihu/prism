@@ -46,7 +46,7 @@ jobs:
   windows:
     needs: version
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - { name: x64,   msvc_arch: amd64,       extra_cmake: "" }
@@ -64,9 +64,12 @@ jobs:
             $linkage = if ($shared -eq "ON") { "dynamic" } else { "static" }
             foreach ($bt in @("Release", "Debug")) {
               $config = $bt.ToLower()
-              cmake -B "build-${linkage}-${config}" ${{ env.CMAKE_COMMON }} `
-                -DCMAKE_BUILD_TYPE=$bt `
-                -DBUILD_SHARED_LIBS=$shared `
+              cmake -B "build-${linkage}-${config}" `
+                -G Ninja `
+                -DPRISM_ENABLE_TESTS=OFF `
+                -DPRISM_ENABLE_DEMOS=OFF `
+                "-DCMAKE_BUILD_TYPE=$bt" `
+                "-DBUILD_SHARED_LIBS=$shared" `
                 -DPRISM_ENABLE_GDEXTENSION=OFF ${{ matrix.extra_cmake }}
               cmake --build "build-${linkage}-${config}"
             }
@@ -103,7 +106,7 @@ jobs:
   linux:
     needs: version
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - { name: x64,   os: ubuntu-latest }
@@ -372,7 +375,7 @@ jobs:
         id: setup-ndk
         with:
           ndk-version: r29
-      - name: download ios toolchain
+      - name: download iOS toolchain
         if: matrix.target.platform == 'ios'
         run: curl -sSL https://raw.githubusercontent.com/leetal/ios-cmake/master/ios.toolchain.cmake -o ios.toolchain.cmake
       - name: Emscripten setup
@@ -469,14 +472,14 @@ jobs:
           expected="prismatoid.${platform}.${target}.${arch}.${ext}"
           actual=$(find "$outdir" -type f 2>/dev/null | head -1)
           if [ -z "$actual" ]; then
-            echo "::error::No binary found in ${outdir}"
+            echo "No binary found in ${outdir}"
             exit 1
           fi
           actual_name=$(basename "$actual")
           if [ "$actual_name" = "$expected" ]; then
             echo "Binary name correct: ${actual_name}"
           else
-            echo "::warning::Renaming ${actual_name} -> ${expected}"
+            echo "Renaming ${actual_name} -> ${expected}"
             mv "$actual" "${outdir}/${expected}"
           fi
       - name: Remove Windows ancillary files
@@ -538,10 +541,12 @@ jobs:
           done
           cat > prismatoid/prismatoid.gdextension << 'GDEXT'
           [configuration]
+
           entry_symbol = "prism_library_init"
           compatibility_minimum = "4.5"
 
           [libraries]
+
           linux.debug.x86_64 = "res://addons/prismatoid/bin/linux/prismatoid.linux.template_debug.x86_64.so"
           linux.release.x86_64 = "res://addons/prismatoid/bin/linux/prismatoid.linux.template_release.x86_64.so"
           linux.debug.x86_32 = "res://addons/prismatoid/bin/linux/prismatoid.linux.template_debug.x86_32.so"
@@ -579,7 +584,7 @@ jobs:
           debug_count=$(find prismatoid/bin -name '*template_debug*' -type f | wc -l)
           release_count=$(find prismatoid/bin -name '*template_release*' -type f | wc -l)
           if [ "$release_count" -eq 0 ]; then
-            echo "::error::No template_release binaries: GODOTCPP_TARGET is not propagating"
+            echo "::error::No template_release binaries — GODOTCPP_TARGET is not propagating"
             exit 1
           fi
           zip -r "prismatoid-gdextension-${tag}.zip" prismatoid
