@@ -39,15 +39,27 @@ if(PRISM_ENABLE_VCPKG_SPECIFIC_OPTIONS)
     OFF)
 endif()
 option(PRISM_ENABLE_GDEXTENSION "Enable building of the Godot GDExtension" ON)
+option(PRISM_ENABLE_LEGACY_BACKENDS
+       "Enable building of legacy backends which are dead or rarely used" OFF)
+if(PRISM_ENABLE_LEGACY_BACKENDS)
+  option(PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND
+         "Enable legacy SystemAccess backend" ON)
+  option(PRISM_ENABLE_LEGACY_WINDOW_EYES_BACKEND
+         "Enable legacy WindowEyes backend" ON)
+endif()
+option(
+  PRISM_ENABLE_SHIMS
+  "Enable shim shared libraries for compatibility with older screen reader libraries"
+  OFF)
+if(PRISM_ENABLE_SHIMS)
+  option(PRISM_ENABLE_TOLK_SHIM "Enable tolk compatibility shim"
+         ${PRISM_ENABLE_SHIMS})
+endif()
 if(MSVC AND PRISM_ENABLE_GDEXTENSION)
   set(CMAKE_MSVC_RUNTIME_LIBRARY
       "MultiThreadedDLL"
       CACHE STRING "Match godot-cpp non-debug CRT")
 endif()
-if(APPLE)
-  enable_language(Swift)
-endif()
-
 function(add_import_library target def_file dll_name)
   set(lib_file "${CMAKE_CURRENT_BINARY_DIR}/${target}.lib")
   if(DEFINED MSVC_CXX_ARCHITECTURE_ID)
@@ -97,19 +109,9 @@ file(GLOB_RECURSE android_headers CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/source/backends/java/*.hpp")
 file(GLOB_RECURSE android_sources CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/source/backends/java/*.cpp")
-if(APPLE)
-  file(
-    GLOB_RECURSE
-    sources
-    CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/source/*.swift")
-else()
-  file(GLOB_RECURSE sources CONFIGURE_DEPENDS
-       "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
-       "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c")
-endif()
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c")
 # Remove platform-specific files
 if(NOT WIN32)
   list(REMOVE_ITEM sources
@@ -131,6 +133,14 @@ endif()
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/source/simdutf.cpp
                             PROPERTIES COMPILE_OPTIONS "-w")
+if(APPLE)
+  set(PRISM_OBJCPP_SOURCES
+      "${CMAKE_CURRENT_SOURCE_DIR}/source/backends/avspeech.cpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/source/backends/voiceover.cpp")
+  set_source_files_properties(
+    ${PRISM_OBJCPP_SOURCES} PROPERTIES COMPILE_OPTIONS
+                                       "-x;objective-c++;-fobjc-arc")
+endif()
 set(_comp_arch_id "")
 if(DEFINED MSVC_CXX_ARCHITECTURE_ID)
   set(_comp_arch_id "${MSVC_CXX_ARCHITECTURE_ID}")
@@ -156,6 +166,18 @@ target_compile_definitions(
     NOMINMAX
     $<$<STREQUAL:$<TARGET_PROPERTY:${PROJECT_NAME},TYPE>,STATIC_LIBRARY>:PRISM_STATIC>
 )
+if(PRISM_ENABLE_LEGACY_BACKENDS)
+  target_compile_definitions(${PROJECT_NAME}
+                             PRIVATE PRISM_ENABLE_LEGACY_BACKENDS)
+  if(PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+    target_compile_definitions(
+      ${PROJECT_NAME} PRIVATE PRISM_ENABLE_SYSTEM_ACCESS_LEGACY_BACKEND)
+  endif()
+  if(PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+    target_compile_definitions(${PROJECT_NAME}
+                               PRIVATE PRISM_ENABLE_WINDOW_EYES_LEGACY_BACKEND)
+  endif()
+endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 get_target_property(_PRISM_LIB_TYPE ${PROJECT_NAME} TYPE)
 if(_PRISM_LIB_TYPE STREQUAL "STATIC_LIBRARY")
@@ -221,19 +243,26 @@ if(WIN32)
   target_include_directories(${PROJECT_NAME} PRIVATE ${GEN_DIR})
   target_link_libraries(${PROJECT_NAME} PRIVATE rpcrt4)
   if(_comp_arch_id_lc STREQUAL "x86" OR _comp_arch_id_lc STREQUAL "i386")
-    add_import_library(SystemAccess ${CMAKE_CURRENT_SOURCE_DIR}/defs/sa32.def
-                       SAAPI32.dll)
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      add_import_library(SystemAccess ${CMAKE_CURRENT_SOURCE_DIR}/defs/sa32.def
+                         SAAPI32.dll)
+      target_link_libraries(${PROJECT_NAME} PRIVATE SystemAccess)
+    endif()
     add_import_library(ZDSR ${CMAKE_CURRENT_SOURCE_DIR}/defs/zdsr32.def
                        ZDSRAPI.dll)
     add_import_library(
       BoyCtrl ${CMAKE_CURRENT_SOURCE_DIR}/defs/boy_pc_reader32.def BoyCtrl.dll)
     add_import_library(
       PCTalker ${CMAKE_CURRENT_SOURCE_DIR}/defs/pc_talker32.def PCTKUSR.dll)
-    target_link_libraries(${PROJECT_NAME} PRIVATE SystemAccess ZDSR BoyCtrl
-                                                  PCTalker)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ZDSR BoyCtrl PCTalker)
   elseif(NOT _comp_arch_id_lc MATCHES "arm64|aarch64|arm64ec")
-    add_import_library(SystemAccess ${CMAKE_CURRENT_SOURCE_DIR}/defs/sa.def
-                       SAAPI64.dll)
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      add_import_library(SystemAccess ${CMAKE_CURRENT_SOURCE_DIR}/defs/sa.def
+                         SAAPI64.dll)
+      target_link_libraries(${PROJECT_NAME} PRIVATE SystemAccess)
+    endif()
     add_import_library(ZDSR ${CMAKE_CURRENT_SOURCE_DIR}/defs/zdsr.def
                        ZDSRAPI_x64.dll)
     add_import_library(
@@ -241,8 +270,7 @@ if(WIN32)
       BoyCtrl-x64.dll)
     add_import_library(PCTalker ${CMAKE_CURRENT_SOURCE_DIR}/defs/pc_talker.def
                        PCTKUSR.dll)
-    target_link_libraries(${PROJECT_NAME} PRIVATE SystemAccess ZDSR BoyCtrl
-                                                  PCTalker)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ZDSR BoyCtrl PCTalker)
   else()
     add_import_library(PCTalker ${CMAKE_CURRENT_SOURCE_DIR}/defs/pc_talker.def
                        PCTKUSR.dll)
@@ -250,8 +278,17 @@ if(WIN32)
   endif()
 endif()
 if(APPLE)
+  find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
   find_library(AVFOUNDATION_FRAMEWORK AVFoundation REQUIRED)
-  target_link_libraries(${PROJECT_NAME} PRIVATE ${AVFOUNDATION_FRAMEWORK} c++)
+  target_link_libraries(${PROJECT_NAME} PRIVATE ${FOUNDATION_FRAMEWORK}
+                                                ${AVFOUNDATION_FRAMEWORK} c++)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${APPKIT_FRAMEWORK})
+  else()
+    find_library(UIKIT_FRAMEWORK UIKit REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${UIKIT_FRAMEWORK})
+  endif()
 endif()
 if(UNIX
    AND NOT APPLE
@@ -378,13 +415,22 @@ if(MSVC)
   target_link_options(${PROJECT_NAME} PRIVATE "/STACK:8388608")
   if(_comp_arch_id_lc STREQUAL "x86" OR _comp_arch_id_lc STREQUAL "i386")
     target_link_options(
-      ${PROJECT_NAME} ${_PRISM_LINK_VIS} /delayload:SAAPI32.dll
-      /delayload:ZDSRAPI.dll /delayload:BoyCtrl.dll /delayload:PCTKUSR.dll)
+      ${PROJECT_NAME} ${_PRISM_LINK_VIS} /delayload:ZDSRAPI.dll
+      /delayload:BoyCtrl.dll /delayload:PCTKUSR.dll)
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
+                          /delayload:SAAPI32.dll)
+    endif()
   elseif(NOT _comp_arch_id_lc MATCHES "arm64|aarch64|arm64ec")
     target_link_options(
-      ${PROJECT_NAME} ${_PRISM_LINK_VIS} /delayload:SAAPI64.dll
-      /delayload:ZDSRAPI_x64.dll /delayload:BoyCtrl-x64.dll
-      /delayload:PCTKUSR.dll)
+      ${PROJECT_NAME} ${_PRISM_LINK_VIS} /delayload:ZDSRAPI_x64.dll
+      /delayload:BoyCtrl-x64.dll /delayload:PCTKUSR.dll)
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
+                          /delayload:SAAPI64.dll)
+    endif()
   else()
     target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
                         /delayload:PCTKUSR.dll)
@@ -404,15 +450,23 @@ elseif(
   if(_comp_arch_id_lc STREQUAL "x86" OR _comp_arch_id_lc STREQUAL "i386")
     target_link_options(${PROJECT_NAME} PRIVATE "LINKER:/STACK:8388608")
     target_link_options(
-      ${PROJECT_NAME} ${_PRISM_LINK_VIS} "LINKER:/delayload:SAAPI32.dll"
-      "LINKER:/delayload:ZDSRAPI.dll" "LINKER:/delayload:BoyCtrl.dll"
-      "LINKER:/delayload:PCTKUSR.dll")
+      ${PROJECT_NAME} ${_PRISM_LINK_VIS} "LINKER:/delayload:ZDSRAPI.dll"
+      "LINKER:/delayload:BoyCtrl.dll" "LINKER:/delayload:PCTKUSR.dll")
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
+                          "LINKER:/delayload:SAAPI32.dll")
+    endif()
   elseif(NOT _comp_arch_id_lc MATCHES "arm64|aarch64|arm64ec")
     target_link_options(${PROJECT_NAME} PRIVATE "LINKER:/STACK:8388608")
     target_link_options(
-      ${PROJECT_NAME} ${_PRISM_LINK_VIS} "LINKER:/delayload:SAAPI64.dll"
-      "LINKER:/delayload:ZDSRAPI_x64.dll" "LINKER:/delayload:BoyCtrl-x64.dll"
-      "LINKER:/delayload:PCTKUSR.dll")
+      ${PROJECT_NAME} ${_PRISM_LINK_VIS} "LINKER:/delayload:ZDSRAPI_x64.dll"
+      "LINKER:/delayload:BoyCtrl-x64.dll" "LINKER:/delayload:PCTKUSR.dll")
+    if(PRISM_ENABLE_LEGACY_BACKENDS
+       AND PRISM_ENABLE_LEGACY_SYSTEM_ACCESS_BACKEND)
+      target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
+                          "LINKER:/delayload:SAAPI32.dll")
+    endif()
   else()
     target_link_options(${PROJECT_NAME} PRIVATE "LINKER:/STACK:8388608")
     target_link_options(${PROJECT_NAME} ${_PRISM_LINK_VIS}
@@ -448,9 +502,6 @@ endif()
 if(APPLE)
   target_link_options(${PROJECT_NAME} PRIVATE
                       "LINKER:-headerpad_max_install_names")
-  set_target_properties(
-    prism PROPERTIES BUILD_RPATH "@loader_path;/usr/lib/swift"
-                     INSTALL_RPATH "@loader_path;/usr/lib/swift")
 endif()
 if(ANDROID)
   target_link_options(${PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
@@ -640,4 +691,7 @@ else()
 endif()
 if(PRISM_ENABLE_GDEXTENSION)
   add_subdirectory(gdextension)
+endif()
+if(PRISM_ENABLE_SHIMS)
+  add_subdirectory(shims)
 endif()
