@@ -18,7 +18,7 @@ class ZdsrBackend final : public TextToSpeechBackend {
 public:
   ~ZdsrBackend() override = default;
 
-  [[nodiscard]] std::string_view get_name() const override { return "Zhengdu"; }
+  [[nodiscard]] std::string_view get_name() const override { return "ZDSR"; }
 
   [[nodiscard]] std::bitset<64> get_features() const override {
     using namespace BackendFeature;
@@ -97,6 +97,6 @@ public:
   }
 };
 
-REGISTER_BACKEND_WITH_ID(ZdsrBackend, Backends::ZDSR, "Zhengdu", 101);
+REGISTER_BACKEND_WITH_ID(ZdsrBackend, Backends::ZDSR, "ZDSR", 101);
 #endif
 #endif

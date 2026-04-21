@@ -31,7 +31,7 @@ public:
         IID_IClassFactory, reinterpret_cast<void **>(&factory));
     if (SUCCEEDED(hr) && factory != nullptr) {
       factory->Release();
-      if (FindWindow(_T("JFWUI2"), nullptr))
+      if (IsWindow(FindWindow(_T("JFWUI2"), nullptr)) != FALSE)
         features |= IS_SUPPORTED_AT_RUNTIME;
     }
     features |=
@@ -42,7 +42,7 @@ public:
   BackendResult<> initialize() override {
     if (initialized.test())
       return std::unexpected(BackendError::AlreadyInitialized);
-    if (!FindWindow(_T("JFWUI2"), nullptr))
+    if (IsWindow(FindWindow(_T("JFWUI2"), nullptr)) == FALSE)
       return std::unexpected(BackendError::BackendNotAvailable);
     switch (controller.CoCreateInstance(CLSID_JawsApi)) {
     case S_OK: {
@@ -61,7 +61,7 @@ public:
   BackendResult<> speak(std::string_view text, bool interrupt) override {
     if (!initialized.test())
       return std::unexpected(BackendError::NotInitialized);
-    if (!FindWindow(_T("JFWUI2"), nullptr))
+    if (IsWindow(FindWindow(_T("JFWUI2"), nullptr)) == FALSE)
       return std::unexpected(BackendError::BackendNotAvailable);
     const auto len = simdutf::utf16_length_from_utf8(text.data(), text.size());
     auto *bstr = SysAllocStringLen(nullptr, static_cast<UINT>(len));
@@ -86,7 +86,7 @@ public:
   BackendResult<> braille(std::string_view text) override {
     if (!initialized.test())
       return std::unexpected(BackendError::NotInitialized);
-    if (!FindWindow(_T("JFWUI2"), nullptr))
+    if (IsWindow(FindWindow(_T("JFWUI2"), nullptr)) == FALSE)
       return std::unexpected(BackendError::BackendNotAvailable);
     constexpr std::wstring_view prefix = L"BrailleString(\"";
     constexpr std::wstring_view suffix = L"\")";
@@ -130,7 +130,7 @@ public:
   BackendResult<> stop() override {
     if (!initialized.test())
       return std::unexpected(BackendError::NotInitialized);
-    if (!FindWindow(_T("JFWUI2"), nullptr))
+    if (IsWindow(FindWindow(_T("JFWUI2"), nullptr)) == FALSE)
       return std::unexpected(BackendError::BackendNotAvailable);
     if (SUCCEEDED(controller->StopSpeech()))
       return {};

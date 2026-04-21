@@ -1,4 +1,4 @@
-/* auto-generated on 2026-04-05 17:00:15 -0400. Do not edit! */
+/* auto-generated on 2026-04-15 17:49:26 -0400. Do not edit! */
 /* begin file src\simdutf.cpp */
 #include "simdutf.h"
 
@@ -2080,7 +2080,6 @@ public:
 /* begin file src\simdutf\arm64\begin.h */
 // redefining SIMDUTF_IMPLEMENTATION to "arm64"
 // #define SIMDUTF_IMPLEMENTATION arm64
-#define SIMDUTF_SIMD_HAS_BYTEMASK 1
 /* end file src\simdutf\arm64\begin.h */
 
   // Declarations
@@ -3243,7 +3242,6 @@ simdutf_really_inline simd64<uint64_t> sum_8bytes(const simd8<uint8_t> v) {
 /* end file src\simdutf\arm64\simd.h */
 
 /* begin file src\simdutf\arm64\end.h */
-#undef SIMDUTF_SIMD_HAS_BYTEMASK
 /* end file src\simdutf\arm64\end.h */
 
 #endif // SIMDUTF_IMPLEMENTATION_ARM64
@@ -14982,7 +14980,6 @@ SIMDUTF_DISABLE_UNDESIRED_WARNINGS
 /* begin file src\simdutf\arm64\begin.h */
 // redefining SIMDUTF_IMPLEMENTATION to "arm64"
 // #define SIMDUTF_IMPLEMENTATION arm64
-#define SIMDUTF_SIMD_HAS_BYTEMASK 1
 /* end file src\simdutf\arm64\begin.h */
 namespace simdutf {
 namespace arm64 {
@@ -22191,7 +22188,6 @@ simdutf_warn_unused size_t implementation::binary_length_from_base64(
 } // namespace simdutf
 
 /* begin file src\simdutf\arm64\end.h */
-#undef SIMDUTF_SIMD_HAS_BYTEMASK
 /* end file src\simdutf\arm64\end.h */
 /* end file src\arm64\implementation.cpp */
 #endif

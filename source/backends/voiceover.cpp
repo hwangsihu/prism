@@ -17,42 +17,74 @@
 #include <string_view>
 
 #if TARGET_OS_OSX
-inline constexpr bool kIsMacOS = true;
-inline constexpr bool kIsVision = false;
-inline constexpr bool kIsTV = false;
-inline constexpr bool kIsWatch = false;
-#elif TARGET_OS_VISION
-inline constexpr bool kIsMacOS = false;
-inline constexpr bool kIsVision = true;
-inline constexpr bool kIsTV = false;
-inline constexpr bool kIsWatch = false;
-#elif TARGET_OS_TV
-inline constexpr bool kIsMacOS = false;
-inline constexpr bool kIsVision = false;
-inline constexpr bool kIsTV = true;
-inline constexpr bool kIsWatch = false;
+static inline constexpr bool is_macos = true;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = false;
+#elif TARGET_OS_MACCATALYST
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = true;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = false;
 #elif TARGET_OS_WATCH
-inline constexpr bool kIsMacOS = false;
-inline constexpr bool kIsVision = false;
-inline constexpr bool kIsTV = false;
-inline constexpr bool kIsWatch = true;
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = true;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = false;
+#elif TARGET_OS_TV
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = true;
+static inline constexpr bool is_visionos = false;
+#elif TARGET_OS_VISION
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = true;
+#elif TARGET_OS_IOS
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = true;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = false;
 #else
-inline constexpr bool kIsMacOS = false;
-inline constexpr bool kIsVision = false;
-inline constexpr bool kIsTV = false;
-inline constexpr bool kIsWatch = false;
+static inline constexpr bool is_macos = false;
+static inline constexpr bool is_mac_catalyst = false;
+static inline constexpr bool is_ios = false;
+static inline constexpr bool is_watchos = false;
+static inline constexpr bool is_tvos = false;
+static inline constexpr bool is_visionos = false;
 #endif
 
-consteval std::string_view backend_display_name() {
-  if constexpr (kIsMacOS)
+static_assert(
+    is_macos || is_mac_catalyst || is_ios || is_watchos || is_tvos ||
+        is_visionos,
+    "This is not a known Apple compilation platform for this backend!");
+
+consteval std::string_view get_backend_display_name() {
+  if constexpr (is_macos)
     return "VoiceOver (macOS)";
-  if constexpr (kIsVision)
-    return "VoiceOver (visionOS)";
-  if constexpr (kIsTV)
-    return "VoiceOver (tvOS)";
-  if constexpr (kIsWatch)
+  else if constexpr (is_mac_catalyst)
+    return "VoiceOver (Mac Catalyst)";
+  else if constexpr (is_watchos)
     return "VoiceOver (watchOS)";
-  return "VoiceOver (iOS)";
+  else if constexpr (is_tvos)
+    return "VoiceOver (tvOS)";
+  else if constexpr (is_visionos)
+    return "VoiceOver (visionOS)";
+  else
+    return "VoiceOver (iOS)";
 }
 
 static inline void sync_on_main(dispatch_block_t block) {
@@ -98,7 +130,7 @@ private:
   NSMutableString *pending_text{nullptr};
   dispatch_block_t debounce_block{nullptr};
   __weak NSWindow *cached_window{nullptr};
-  static constexpr double kDebounceDelay = 0.015;
+  static inline constexpr double debounce_delay = 0.015;
 #else
   NSMutableArray<NSString *> *queue{nullptr};
   bool is_speaking_flag{false};
@@ -107,7 +139,7 @@ private:
 
 public:
   VoiceOverBackend() {
-    if constexpr (kIsMacOS) {
+    if constexpr (is_macos) {
 #if TARGET_OS_OSX
       pending_text = [NSMutableString string];
 #endif
@@ -127,7 +159,7 @@ public:
   }
 
   [[nodiscard]] std::string_view get_name() const override {
-    return backend_display_name();
+    return get_backend_display_name();
   }
 
   [[nodiscard]] std::bitset<64> get_features() const override {
@@ -300,7 +332,7 @@ private:
         });
     dispatch_after(
         dispatch_time(DISPATCH_TIME_NOW,
-                      static_cast<int64_t>(kDebounceDelay * NSEC_PER_SEC)),
+                      static_cast<int64_t>(debounce_delay * NSEC_PER_SEC)),
         dispatch_get_main_queue(), debounce_block);
   }
 

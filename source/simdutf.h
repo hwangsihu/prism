@@ -1,4 +1,4 @@
-/* auto-generated on 2026-04-05 17:00:15 -0400. Do not edit! */
+/* auto-generated on 2026-04-15 17:49:26 -0400. Do not edit! */
 /* begin file include\simdutf.h */
 #ifndef SIMDUTF_H
 #define SIMDUTF_H
@@ -1314,13 +1314,27 @@ static inline uint32_t detect_supported_architectures() {
 //      #   error("Please amalgamate simdutf with UTF-16 support")
 //      #endif
 //
-#define SIMDUTF_FEATURE_DETECT_ENCODING 1
-#define SIMDUTF_FEATURE_ASCII 1
-#define SIMDUTF_FEATURE_LATIN1 1
-#define SIMDUTF_FEATURE_UTF8 1
-#define SIMDUTF_FEATURE_UTF16 1
-#define SIMDUTF_FEATURE_UTF32 1
-#define SIMDUTF_FEATURE_BASE64 1
+#ifndef SIMDUTF_FEATURE_DETECT_ENCODING
+  #define SIMDUTF_FEATURE_DETECT_ENCODING 1
+#endif
+#ifndef SIMDUTF_FEATURE_ASCII
+  #define SIMDUTF_FEATURE_ASCII 1
+#endif
+#ifndef SIMDUTF_FEATURE_LATIN1
+  #define SIMDUTF_FEATURE_LATIN1 1
+#endif
+#ifndef SIMDUTF_FEATURE_UTF8
+  #define SIMDUTF_FEATURE_UTF8 1
+#endif
+#ifndef SIMDUTF_FEATURE_UTF16
+  #define SIMDUTF_FEATURE_UTF16 1
+#endif
+#ifndef SIMDUTF_FEATURE_UTF32
+  #define SIMDUTF_FEATURE_UTF32 1
+#endif
+#ifndef SIMDUTF_FEATURE_BASE64
+  #define SIMDUTF_FEATURE_BASE64 1
+#endif
 
 #if SIMDUTF_CPLUSPLUS23
 /* begin file include\simdutf\constexpr_ptr.h */

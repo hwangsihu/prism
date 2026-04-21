@@ -598,35 +598,7 @@ set(CMAKE_INSTALL_UCRT_LIBRARIES ON)
 include(InstallRequiredSystemLibraries)
 if(PRISM_ENABLE_TESTS)
   enable_testing()
-  include(cmake/CPM.cmake)
-  cpmaddpackage(
-    NAME
-    gtest
-    GITHUB_REPOSITORY
-    google/googletest
-    VERSION
-    1.17.0
-    OPTIONS
-    "INSTALL_GTEST OFF"
-    "gtest_force_shared_crt ON")
-  include(GoogleTest)
-  file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
-  foreach(TEST_SOURCE ${TEST_SOURCES})
-    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
-    add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE GTest::gtest_main prism)
-    if(WIN32)
-      target_link_libraries(${TEST_NAME} PRIVATE Rpcrt4.lib)
-    endif()
-    target_include_directories(${TEST_NAME}
-                               PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    if(MSVC)
-      target_compile_options(${TEST_NAME} PRIVATE /W4)
-    else()
-      target_compile_options(${TEST_NAME} PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-    gtest_discover_tests(${TEST_NAME})
-  endforeach()
+  add_subdirectory(tests)
 endif()
 if(PRISM_ENABLE_DEMOS)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/demos)

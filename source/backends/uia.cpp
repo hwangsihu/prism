@@ -335,7 +335,7 @@ private:
   }
 
   static bool is_good_window(HWND hwnd) {
-    if (hwnd == nullptr || IsWindowVisible(hwnd) == FALSE ||
+    if (IsWindow(hwnd) == FALSE || IsWindowVisible(hwnd) == FALSE ||
         IsIconic(hwnd) == TRUE)
       return false;
     DWORD pid;

@@ -7,12 +7,14 @@
 #include "nvda_controller.h"
 #include <cstdlib>
 #include <format>
+#include <shared_mutex>
 #include <tchar.h>
 #include <windows.h>
 
 extern "C" {
-static thread_local onSsmlMarkReachedFuncType ssml_mark_reached_callback =
-    nullptr;
+static onSsmlMarkReachedFuncType ssml_mark_reached_callback = nullptr;
+static std::shared_mutex ssml_mark_reached_callback_mtx;
+
 _Must_inspect_result_ _Ret_maybenull_ _Post_writable_byte_size_(
     size) void *__RPC_USER MIDL_user_allocate(_In_ size_t size) {
   return malloc(size);
@@ -24,6 +26,7 @@ void __RPC_USER MIDL_user_free(_Pre_maybenull_ _Post_invalid_ void *p) {
 }
 
 error_status_t __stdcall nvdaController_onSsmlMarkReached(const wchar_t *mark) {
+  std::shared_lock sl(ssml_mark_reached_callback_mtx);
   if (ssml_mark_reached_callback == nullptr) {
     return ERROR_CALL_NOT_IMPLEMENTED;
   }
@@ -32,7 +35,10 @@ error_status_t __stdcall nvdaController_onSsmlMarkReached(const wchar_t *mark) {
 
 error_status_t __stdcall nvdaController_setOnSsmlMarkReachedCallback(
     onSsmlMarkReachedFuncType callback) {
-  ssml_mark_reached_callback = callback;
+  {
+    std::unique_lock ul(ssml_mark_reached_callback_mtx);
+    ssml_mark_reached_callback = callback;
+  }
   return ERROR_SUCCESS;
 }
 }
