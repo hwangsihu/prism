@@ -1,4 +1,4 @@
-/* auto-generated on 2026-04-15 17:49:26 -0400. Do not edit! */
+/* auto-generated on 2026-04-21 21:46:47 -0400. Do not edit! */
 /* begin file include\simdutf.h */
 #ifndef SIMDUTF_H
 #define SIMDUTF_H
@@ -50,8 +50,8 @@
   #define SIMDUTF_CPLUSPLUS11 1
 #endif
 
-#ifndef SIMDUTF_CPLUSPLUS11
-  #error simdutf requires a compiler compliant with the C++11 standard
+#ifndef SIMDUTF_CPLUSPLUS17
+  #error simdutf requires a compiler compliant with the C++17 standard
 #endif
 
 #endif // SIMDUTF_COMPILER_CHECK_H
@@ -68,6 +68,7 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #ifndef _WIN32
   // strcasecmp, strncasecmp
@@ -547,13 +548,6 @@
 
 #endif // MSC_VER
 
-// Conditional constexpr macro: expands to constexpr for C++17+, empty otherwise
-#if SIMDUTF_CPLUSPLUS17
-  #define simdutf_constexpr constexpr
-#else
-  #define simdutf_constexpr
-#endif
-
 // Will evaluate to constexpr in C++23 or later. This makes it possible to mark
 // functions constexpr if the "if consteval" feature is available to use.
 #if SIMDUTF_CPLUSPLUS23
@@ -612,7 +606,7 @@
 /* begin file include\simdutf\encoding_types.h */
 #ifndef SIMDUTF_ENCODING_TYPES_H
 #define SIMDUTF_ENCODING_TYPES_H
-#include <string>
+#include <string_view>
 
 #if !defined(SIMDUTF_NO_STD_TEXT_ENCODING) &&                                  \
     defined(__cpp_lib_text_encoding) && __cpp_lib_text_encoding >= 202306L
@@ -653,7 +647,7 @@ match_system(endianness e) {
   return e == endianness::NATIVE;
 }
 
-simdutf_warn_unused std::string to_string(encoding_type bom);
+simdutf_warn_unused std::string_view to_string(encoding_type bom);
 
 // Note that BOM for UTF8 is discouraged.
 namespace BOM {
@@ -801,6 +795,8 @@ from_std_encoding_native(const std::text_encoding &enc) noexcept {
 /* begin file include\simdutf\error.h */
 #ifndef SIMDUTF_ERROR_H
 #define SIMDUTF_ERROR_H
+#include <string_view>
+
 namespace simdutf {
 
 enum error_code {
@@ -842,7 +838,7 @@ enum error_code {
   OUTPUT_BUFFER_TOO_SMALL,  // The provided buffer is too small.
   OTHER                     // Not related to validation/transcoding.
 };
-#if SIMDUTF_CPLUSPLUS17
+
 inline std::string_view error_to_string(error_code code) noexcept {
   switch (code) {
   case SUCCESS:
@@ -871,7 +867,6 @@ inline std::string_view error_to_string(error_code code) noexcept {
     return "OTHER";
   }
 }
-#endif
 
 struct result {
   error_code error;
@@ -938,18 +933,18 @@ SIMDUTF_DISABLE_UNDESIRED_WARNINGS
 #define SIMDUTF_SIMDUTF_VERSION_H
 
 /** The version of simdutf being used (major.minor.revision) */
-#define SIMDUTF_VERSION "8.2.0"
+#define SIMDUTF_VERSION "9.0.0"
 
 namespace simdutf {
 enum {
   /**
    * The major version (MAJOR.minor.revision) of simdutf being used.
    */
-  SIMDUTF_VERSION_MAJOR = 8,
+  SIMDUTF_VERSION_MAJOR = 9,
   /**
    * The minor version (major.MINOR.revision) of simdutf being used.
    */
-  SIMDUTF_VERSION_MINOR = 2,
+  SIMDUTF_VERSION_MINOR = 0,
   /**
    * The revision (major.minor.REVISION) of simdutf being used.
    */
@@ -965,7 +960,6 @@ enum {
 #if !defined(SIMDUTF_NO_THREADS)
   #include <atomic>
 #endif
-#include <string>
 #ifdef SIMDUTF_INTERNAL_TESTS
   #include <vector>
 #endif
@@ -1296,14 +1290,13 @@ static inline uint32_t detect_supported_architectures() {
 #endif // SIMDutf_INTERNAL_ISADETECTION_H
 /* end file include\simdutf\internal\isadetection.h */
 
+#include <string_view>
 #if SIMDUTF_SPAN
   #include <concepts>
   #include <type_traits>
   #include <span>
   #include <tuple>
-#endif
-#if SIMDUTF_CPLUSPLUS17
-  #include <string_view>
+  #include <utility> // for std::unreachable
 #endif
 // The following defines are conditionally enabled/disabled during amalgamation.
 // By default all features are enabled, regular code shouldn't check them. Only
@@ -2236,14 +2229,12 @@ trim_partial_utf16(const char16_t *input, size_t length) {
   return length;
 }
 
-template <endianness big_endian>
-simdutf_constexpr bool is_high_surrogate(char16_t c) {
+template <endianness big_endian> constexpr bool is_high_surrogate(char16_t c) {
   c = scalar::utf16::swap_if_needed<big_endian>(c);
   return (0xd800 <= c && c <= 0xdbff);
 }
 
-template <endianness big_endian>
-simdutf_constexpr bool is_low_surrogate(char16_t c) {
+template <endianness big_endian> constexpr bool is_low_surrogate(char16_t c) {
   c = scalar::utf16::swap_if_needed<big_endian>(c);
   return (0xdc00 <= c && c <= 0xdfff);
 }
@@ -2393,16 +2384,16 @@ simdutf_constexpr23 result convert_with_errors(InputPtr data, size_t len,
         ::memcpy(&v3, data + pos + 8, sizeof(uint64_t));
         ::memcpy(&v4, data + pos + 12, sizeof(uint64_t));
 
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v1 = (v1 >> 8) | (v1 << (64 - 8));
         }
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v2 = (v2 >> 8) | (v2 << (64 - 8));
         }
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v3 = (v3 >> 8) | (v3 << (64 - 8));
         }
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v4 = (v4 >> 8) | (v4 << (64 - 8));
         }
 
@@ -2641,7 +2632,7 @@ simdutf_constexpr23 size_t convert(InputPtr data, size_t len,
                             // they are ascii
         uint64_t v;
         ::memcpy(&v, data + pos, sizeof(uint64_t));
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v = (v >> 8) | (v << (64 - 8));
         }
         if ((v & 0xFF80FF80FF80FF80) == 0) {
@@ -2731,7 +2722,7 @@ simdutf_constexpr23 full_result convert_with_errors(InputPtr data, size_t len,
                             // they are ascii
         uint64_t v;
         ::memcpy(&v, data + pos, sizeof(uint64_t));
-        if simdutf_constexpr (!match_system(big_endian))
+        if constexpr (!match_system(big_endian))
           v = (v >> 8) | (v << (64 - 8));
         if ((v & 0xFF80FF80FF80FF80) == 0) {
           size_t final_pos = pos + 4;
@@ -2838,7 +2829,7 @@ simdutf_constexpr23 size_t convert_with_replacement(const char16_t *data,
                             // they are ascii
         uint64_t v;
         ::memcpy(&v, data + pos, sizeof(uint64_t));
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v = (v >> 8) | (v << (64 - 8));
         }
         if ((v & 0xFF80FF80FF80FF80) == 0) {
@@ -2938,7 +2929,7 @@ simdutf_constexpr23 size_t convert_valid(InputPtr data, size_t len,
                             // they are ascii
         uint64_t v;
         ::memcpy(&v, data + pos, sizeof(uint64_t));
-        if simdutf_constexpr (!match_system(big_endian)) {
+        if constexpr (!match_system(big_endian)) {
           v = (v >> 8) | (v << (64 - 8));
         }
         if ((v & 0xFF80FF80FF80FF80) == 0) {
@@ -3258,7 +3249,7 @@ simdutf_constexpr23 size_t convert(const char32_t *data, size_t len,
       word -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (word >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (word & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -3293,7 +3284,7 @@ simdutf_constexpr23 result convert_with_errors(const char32_t *data, size_t len,
       word -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (word >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (word & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -3339,7 +3330,7 @@ simdutf_constexpr23 size_t convert_valid(const char32_t *data, size_t len,
       word -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (word >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (word & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -4285,7 +4276,7 @@ simdutf_constexpr23 size_t convert(InputPtr data, size_t len,
       if (code_point < 0x80 || 0x7ff < code_point) {
         return 0;
       }
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = uint32_t(u16_swap_bytes(uint16_t(code_point)));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4311,7 +4302,7 @@ simdutf_constexpr23 size_t convert(InputPtr data, size_t len,
           (0xd7ff < code_point && code_point < 0xe000)) {
         return 0;
       }
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = uint32_t(u16_swap_bytes(uint16_t(code_point)));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4342,7 +4333,7 @@ simdutf_constexpr23 size_t convert(InputPtr data, size_t len,
       code_point -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (code_point >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (code_point & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -4412,7 +4403,7 @@ simdutf_constexpr23 result convert_with_errors(InputPtr data, size_t len,
       if (code_point < 0x80 || 0x7ff < code_point) {
         return result(error_code::OVERLONG, pos);
       }
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = uint32_t(u16_swap_bytes(uint16_t(code_point)));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4440,7 +4431,7 @@ simdutf_constexpr23 result convert_with_errors(InputPtr data, size_t len,
       if (0xd7ff < code_point && code_point < 0xe000) {
         return result(error_code::SURROGATE, pos);
       }
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = uint32_t(u16_swap_bytes(uint16_t(code_point)));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4474,7 +4465,7 @@ simdutf_constexpr23 result convert_with_errors(InputPtr data, size_t len,
       code_point -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (code_point >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (code_point & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -4618,7 +4609,7 @@ simdutf_constexpr23 size_t convert_valid(InputPtr data, size_t len,
       } // minimal bound checking
       uint16_t code_point = uint16_t(((leading_byte & 0b00011111) << 6) |
                                      (uint8_t(data[pos + 1]) & 0b00111111));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = u16_swap_bytes(uint16_t(code_point));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4633,7 +4624,7 @@ simdutf_constexpr23 size_t convert_valid(InputPtr data, size_t len,
           uint16_t(((leading_byte & 0b00001111) << 12) |
                    ((uint8_t(data[pos + 1]) & 0b00111111) << 6) |
                    (uint8_t(data[pos + 2]) & 0b00111111));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         code_point = u16_swap_bytes(uint16_t(code_point));
       }
       *utf16_output++ = char16_t(code_point);
@@ -4650,7 +4641,7 @@ simdutf_constexpr23 size_t convert_valid(InputPtr data, size_t len,
       code_point -= 0x10000;
       uint16_t high_surrogate = uint16_t(0xD800 + (code_point >> 10));
       uint16_t low_surrogate = uint16_t(0xDC00 + (code_point & 0x3FF));
-      if simdutf_constexpr (!match_system(big_endian)) {
+      if constexpr (!match_system(big_endian)) {
         high_surrogate = u16_swap_bytes(high_surrogate);
         low_surrogate = u16_swap_bytes(low_surrogate);
       }
@@ -9960,7 +9951,6 @@ static_assert(to_base64_url_value[uint8_t('_')] == 63,
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 
 namespace simdutf {
 namespace scalar {
@@ -9974,7 +9964,7 @@ template <class char_type> bool is_ascii_white_space(char_type c) {
 }
 
 template <class char_type> simdutf_constexpr23 bool is_eight_byte(char_type c) {
-  if simdutf_constexpr (sizeof(char_type) == 1) {
+  if constexpr (sizeof(char_type) == 1) {
     return true;
   }
   return uint8_t(c) == c;
@@ -10373,7 +10363,7 @@ template <bool use_lines = false>
 simdutf_constexpr23 size_t tail_encode_base64_impl(
     char *dst, const char *src, size_t srclen, base64_options options,
     size_t line_length = simdutf::default_line_length, size_t line_offset = 0) {
-  if simdutf_constexpr (use_lines) {
+  if constexpr (use_lines) {
     // sanitize line_length and starting_line_offset.
     // line_length must be greater than 3.
     if (line_length < 4) {
@@ -10408,7 +10398,7 @@ simdutf_constexpr23 size_t tail_encode_base64_impl(
     t1 = uint8_t(src[i]);
     t2 = uint8_t(src[i + 1]);
     t3 = uint8_t(src[i + 2]);
-    if simdutf_constexpr (use_lines) {
+    if constexpr (use_lines) {
       if (line_offset + 3 >= line_length) {
         if (line_offset == line_length) {
           *out++ = '\n';
@@ -10458,7 +10448,7 @@ simdutf_constexpr23 size_t tail_encode_base64_impl(
     break;
   case 1:
     t1 = uint8_t(src[i]);
-    if simdutf_constexpr (use_lines) {
+    if constexpr (use_lines) {
       if (use_padding) {
         if (line_offset + 3 >= line_length) {
           if (line_offset == line_length) {
@@ -10524,7 +10514,7 @@ simdutf_constexpr23 size_t tail_encode_base64_impl(
   default: /* case 2 */
     t1 = uint8_t(src[i]);
     t2 = uint8_t(src[i + 1]);
-    if simdutf_constexpr (use_lines) {
+    if constexpr (use_lines) {
       if (use_padding) {
         if (line_offset + 3 >= line_length) {
           if (line_offset == line_length) {
@@ -10868,7 +10858,6 @@ simdutf_warn_unused size_t prefix_length(size_t count,
 
 namespace simdutf {
 
-  #if SIMDUTF_CPLUSPLUS17
 inline std::string_view to_string(base64_options options) {
   switch (options) {
   case base64_default:
@@ -10890,9 +10879,7 @@ inline std::string_view to_string(base64_options options) {
   }
   return "<unknown>";
 }
-  #endif // SIMDUTF_CPLUSPLUS17
 
-  #if SIMDUTF_CPLUSPLUS17
 inline std::string_view to_string(last_chunk_handling_options options) {
   switch (options) {
   case loose:
@@ -10906,7 +10893,6 @@ inline std::string_view to_string(last_chunk_handling_options options) {
   }
   return "<unknown>";
 }
-  #endif
 
 /**
  * Provide the maximal binary length in bytes given the base64 input.
@@ -11782,7 +11768,7 @@ public:
    *
    * @return the name of the implementation, e.g. "haswell", "westmere", "arm64"
    */
-  virtual std::string name() const { return std::string(_name); }
+  virtual std::string_view name() const noexcept { return _name; }
 
   /**
    * The description of this implementation.
@@ -11793,7 +11779,7 @@ public:
    *
    * @return the name of the implementation, e.g. "haswell", "westmere", "arm64"
    */
-  virtual std::string description() const { return std::string(_description); }
+  virtual std::string_view description() const noexcept { return _description; }
 
   /**
    * The instruction sets this implementation is compiled against
@@ -13697,7 +13683,7 @@ public:
 
   struct TestProcedure {
     // display name
-    std::string name;
+    std::string_view name;
 
     // procedure should return whether given test pass or not
     void (*procedure)(const implementation &);
@@ -13765,7 +13751,7 @@ public:
    * @param name the implementation to find, e.g. "westmere", "haswell", "arm64"
    * @return the implementation, or nullptr if the parse failed.
    */
-  const implementation *operator[](const std::string &name) const noexcept {
+  const implementation *operator[](std::string_view name) const noexcept {
     for (const implementation *impl : *this) {
       if (impl->name() == name) {
         return impl;
@@ -14122,7 +14108,7 @@ consteval auto base64_decode_literal(const char *str) {
   auto r = scalar::base64::base64_to_binary_details_impl(
       str, InputLen, result.buffer.data(), base64_default, loose);
   if (r.error != error_code::SUCCESS) {
-    throw "invalid base64 input in _base64 literal";
+    std::unreachable(); // invalid base64 input in _base64 literal
   }
   result.output_count = r.output_count;
   return result;
