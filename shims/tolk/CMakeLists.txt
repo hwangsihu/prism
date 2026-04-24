@@ -16,7 +16,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 project(
   tolk
-  VERSION 0.12.1
+  VERSION 0.12.2
   DESCRIPTION "Tolk shim for Prism"
   LANGUAGES C)
 
