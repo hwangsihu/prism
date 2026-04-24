@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: MPL-2.0
+name: Publish to PyPI
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  build:
+    if: ${{ !github.event.release.prerelease }}
+    uses: ./.github/workflows/build.yml
+    with:
+      build_wheels: true
+      build_sdist:  true
+
+  upload_pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/prismatoid
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@v1
