@@ -6,6 +6,7 @@
 #include "utils.h"
 #ifdef __OBJC__
 #ifdef __APPLE__
+#import <AVFAudio/AVFAudio.h>
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 #include <atomic>
@@ -152,6 +153,18 @@ public:
     });
     if (!success) {
       return std::unexpected(BackendError::BackendNotAvailable);
+    }
+    if (@available(macOS 14.0, iOS 17.0, *)) {
+      dispatch_semaphore_t auth_sema = dispatch_semaphore_create(0);
+      __block auto auth_status =
+          AVSpeechSynthesisPersonalVoiceAuthorizationStatusNotDetermined;
+      [AVSpeechSynthesizer
+          requestPersonalVoiceAuthorizationWithCompletionHandler:^(
+              AVSpeechSynthesisPersonalVoiceAuthorizationStatus status) {
+            auth_status = status;
+            dispatch_semaphore_signal(auth_sema);
+          }];
+      wait_for_semaphore_pumping_main(auth_sema, 120.0);
     }
     if (auto const res = refresh_voices(); !res) {
       return res;
@@ -362,6 +375,16 @@ public:
   BackendResult<> pause() override {
     if (!initialized.test())
       return std::unexpected(BackendError::NotInitialized);
+    __block bool paused = false;
+    __block bool speaking = false;
+    sync_on_main(^{
+      paused = synthesizer.isPaused;
+      speaking = synthesizer.isSpeaking;
+    });
+    if (paused)
+      return std::unexpected(BackendError::AlreadyPaused);
+    if (!speaking)
+      return std::unexpected(BackendError::NotSpeaking);
     sync_on_main(^{
       [synthesizer pauseSpeakingAtBoundary:AVSpeechBoundaryImmediate];
     });
@@ -371,6 +394,12 @@ public:
   BackendResult<> resume() override {
     if (!initialized.test())
       return std::unexpected(BackendError::NotInitialized);
+    __block bool paused = false;
+    sync_on_main(^{
+      paused = synthesizer.isPaused;
+    });
+    if (!paused)
+      return std::unexpected(BackendError::NotPaused);
     sync_on_main(^{
       [synthesizer continueSpeaking];
     });
