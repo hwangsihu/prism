@@ -9,13 +9,13 @@
 #include <TargetConditionals.h>
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h>
 #else
 #import <UIKit/UIKit.h>
 #endif
 #include <atomic>
 #include <bitset>
 #include <string_view>
-
 #if TARGET_OS_OSX
 static inline constexpr bool is_macos = true;
 static inline constexpr bool is_mac_catalyst = false;
@@ -105,22 +105,31 @@ static inline bool is_voiceover_active() {
 
 #if TARGET_OS_OSX
 static NSWindow *pick_best_window() {
-  NSApplication *app = [NSApplication sharedApplication];
-  if (NSWindow *kw = app.keyWindow; kw && kw.isVisible)
+  auto *const app = [NSApplication sharedApplication];
+  if (auto *kw = app.keyWindow; kw != nullptr && kw.isVisible)
     return kw;
-  if (NSWindow *mw = app.mainWindow; mw && mw.isVisible)
+  if (auto *mw = app.mainWindow; mw != nullptr && mw.isVisible)
     return mw;
-  for (NSWindow *w in app.orderedWindows) {
+  for (NSWindow *const w in app.orderedWindows) {
     if (w.isVisible && !w.isMiniaturized && w.level == NSNormalWindowLevel) {
       return w;
     }
   }
-  for (NSWindow *w in app.windows) {
+  for (NSWindow *const w in app.windows) {
     if (w.contentView != nil)
       return w;
   }
   return app.windows.firstObject;
 }
+
+static constexpr NSString *const VOICE_OVER_APPLE_SCRIPT_SOURCE =
+    @"on voSpeak(theText)\n"
+    @"    tell application \"VoiceOver\" to output theText\n"
+    @"end voSpeak\n"
+    @"\n"
+    @"on voStop()\n"
+    @"    tell application \"VoiceOver\" to output \"\"\n"
+    @"end voStop\n";
 #endif
 
 class VoiceOverBackend final : public TextToSpeechBackend {
@@ -130,6 +139,8 @@ private:
   NSMutableString *pending_text{nullptr};
   dispatch_block_t debounce_block{nullptr};
   __weak NSWindow *cached_window{nullptr};
+  NSAppleScript *legacy_script{nullptr};
+  std::atomic_flag legacy_unavailable;
   static inline constexpr double debounce_delay = 0.015;
 #else
   NSMutableArray<NSString *> *queue{nullptr};
@@ -183,7 +194,7 @@ public:
         return;
       }
 #if TARGET_OS_OSX
-      NSWindow *w = pick_best_window();
+      auto *const w = pick_best_window();
       if (!w) {
         result = std::unexpected(BackendError::BackendNotAvailable);
         return;
@@ -191,6 +202,14 @@ public:
       cached_window = w;
       [pending_text setString:@""];
       cancel_debounce();
+      legacy_unavailable.clear();
+      legacy_script =
+          [[NSAppleScript alloc] initWithSource:VOICE_OVER_APPLE_SCRIPT_SOURCE];
+      NSDictionary *compileError = nil;
+      if (![legacy_script compileAndReturnError:&compileError]) {
+        legacy_script = nil;
+        legacy_unavailable.test_and_set();
+      }
       dispatch_async(dispatch_get_main_queue(), ^{
         NSAccessibilityPostNotification(
             w, NSAccessibilityWindowCreatedNotification);
@@ -290,6 +309,7 @@ public:
 #if TARGET_OS_OSX
       cancel_debounce();
       [pending_text setString:@""];
+      (void)try_invoke_legacy_handler(@"voStop", nil);
 #else
       [queue removeAllObjects];
       is_speaking_flag = false;
@@ -304,6 +324,7 @@ private:
     cancel_debounce();
     [pending_text setString:@""];
     cached_window = nullptr;
+    legacy_script = nil;
 #else
     if (observer) {
       [[NSNotificationCenter defaultCenter] removeObserver:observer];
@@ -336,6 +357,45 @@ private:
         dispatch_get_main_queue(), debounce_block);
   }
 
+  bool try_invoke_legacy_handler(NSString *handlerName, NSString *argument) {
+    if (legacy_unavailable.test())
+      return false;
+    if (!legacy_script)
+      return false;
+    ProcessSerialNumber psn = {0, kCurrentProcess};
+    auto *const target = [NSAppleEventDescriptor
+        descriptorWithDescriptorType:typeProcessSerialNumber
+                               bytes:&psn
+                              length:sizeof(psn)];
+    auto *const event =
+        [NSAppleEventDescriptor appleEventWithEventClass:kASAppleScriptSuite
+                                                 eventID:kASSubroutineEvent
+                                        targetDescriptor:target
+                                                returnID:kAutoGenerateReturnID
+                                           transactionID:kAnyTransactionID];
+    [event setParamDescriptor:[NSAppleEventDescriptor
+                                  descriptorWithString:handlerName]
+                   forKeyword:keyASSubroutineName];
+    auto *const args = [NSAppleEventDescriptor listDescriptor];
+    if (argument) {
+      [args insertDescriptor:[NSAppleEventDescriptor
+                                 descriptorWithString:argument]
+                     atIndex:1];
+    }
+    [event setParamDescriptor:args forKeyword:keyDirectObject];
+    NSDictionary *errorInfo = nil;
+    auto *const reply =
+        [legacy_script executeAppleEvent:event error:&errorInfo];
+    if (reply == nil) {
+      NSNumber *const errNum = errorInfo[NSAppleScriptErrorNumber];
+      if (errNum && errNum.intValue == errAEEventNotPermitted) {
+        legacy_unavailable.test_and_set();
+      }
+      return false;
+    }
+    return true;
+  }
+
   void fire_announcement_now() {
     if (!initialized.test())
       return;
@@ -343,8 +403,10 @@ private:
       return;
     if (pending_text.length == 0)
       return;
-    NSString *text_to_speak = [pending_text copy];
+    NSString *const text_to_speak = [pending_text copy];
     [pending_text setString:@""];
+    if (try_invoke_legacy_handler(@"voSpeak", text_to_speak))
+      return;
     NSWindow *w = cached_window ?: pick_best_window();
     if (!w)
       return;
@@ -363,7 +425,7 @@ private:
       return;
     if (queue.count == 0)
       return;
-    NSString *next = queue.firstObject;
+    auto *const next = queue.firstObject;
     [queue removeObjectAtIndex:0];
     is_speaking_flag = true;
     dispatch_async(dispatch_get_main_queue(), ^{
